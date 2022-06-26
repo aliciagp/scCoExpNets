@@ -155,7 +155,7 @@ getMarkersList <- function(type=c("GenomicsEngland", "PD", "cellTypeMarker", "DN
 
   markersList <- list()
 
-  the.dir = system.file("", "markers", package = "scGCNs")
+  the.dir = system.file("", "markers", package = "scCoExpNets")
   files = list.files(path=the.dir, full.names = T)
 
   if(type=="cellTypeMarker") {
