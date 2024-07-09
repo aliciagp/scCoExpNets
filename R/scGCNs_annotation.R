@@ -27,123 +27,6 @@ getSubclusterName <- function(netName) {
 }
 
 
-
-
-#' getModulesPreservedPerIter - It identifies the modules from the original network that are preserved through all pseudo-cells iterations.
-#'
-#' @param dir the path where the networks from the same subcluster are located or the bulk network is located
-#' @param plot if plot=TRUE, plots will be shown
-#' @return a list containing: i) a data frame showing which modules are preserved through all pseudo-cells iterations and which not,
-#' ii) the results of the tests for each iteration.
-#' @export
-#' @examples
-
-getModulesPreservedPerIter <- function(dir=getwd(),
-                                       plot=F) {
-
-  dirs <- list.dirs(dir, recursive=FALSE)
-  netIter0 <- list.files(paste0(dirs[-grep("iter", dirs)], "/Net/"), pattern=".50.rds$", full.names=T)
-  subcluster <- getSubclusterName(netIter0)[["subcluster"]]
-  netIter0 <- readRDS(netIter0)
-  dirs <- dirs[grep("iter", dirs)]
-  allResults <- data.frame()
-
-  for (i in 1:length(dirs)) {
-    netIterX <- readRDS(list.files(paste0(dirs[i], "/Net/"), pattern=".50.rds$", full.names=T))
-    results <- myGenCrossTabPlot(netIter0$moduleColors,
-                                 netIterX$moduleColors,
-                                 tissue1="Original",
-                                 tissue2=paste0("Iter", i),
-                                 plot=plot,
-                                 plot.file=NULL)
-
-    for(j in 1:nrow(results)) {
-      length(rep(subcluster, nrow(results)))
-      length(rep(rownames(results)[j], ncol(results)))
-
-      moduleResults <- cbind(rep(subcluster, ncol(results)), rep(rownames(results)[j], ncol(results)), as.numeric(results[j, ]), colnames(results), rep(paste0("iter", i), ncol(results)))
-      allResults <- rbind(allResults, moduleResults)
-    }
-
-  }
-
-  colnames(allResults) <- c("subcluster", "originalModule", "pvalue", "iterModule", "iter")
-
-  allResults$pvalue <- as.numeric(as.character(allResults$pvalue))
-  allResults$pvalue <- p.adjust(allResults$pvalue, method="BH")
-  allResults <- allResults[allResults$pvalue<0.05, ]
-
-  df <- table(allResults$originalModule, allResults$iter)
-  index <- which(rowSums(df)>=ncol(df))
-
-  toReturn <- as.data.frame(cbind(rep(subcluster, nrow(df)), rep("iter0", nrow(df)), rownames(df), rep(0, nrow(df))))
-  toReturn[index, 4] <- "preserved"
-  toReturn[-index, 4] <- "nonPreserved"
-
-  colnames(toReturn) <- c("subcluster", "iter", "module", "criteria")
-
-  return(list(summary=toReturn, allTests=allResults))
-}
-
-
-
-
-#' getModulesNonPreserved - It tests if modules from the iteration !=0 are not preserved in the T0 GCN.
-#' To this end, it applies a Fisher's exact test using myGenCrossTabPlot function.
-#'
-#' @param dir the path where the networks from the same subcluster are located
-#' @param plot if plot=TRUE, plots will be shown
-#' @return a data frame containing one row per module from iteration !=0.
-#' If the criteria=="exclusive", it means that this module is not preserved in the original network
-#' @export
-#' @examples
-
-getModulesNonPreserved <- function(dir=getwd(),
-                                   plot=F) {
-
-  dirs <- list.dirs(dir, recursive=FALSE)
-  netIter0 <- list.files(paste0(dirs[1], "/Net/"), pattern=".50.rds$", full.names=T)
-  subcluster <- getSubclusterName(netIter0)[["subcluster"]]
-  netIter0 <- readRDS(netIter0)
-  dirs <- dirs[-1]
-  allResults <- vector(mode="list", length=length(dirs))
-
-
-  for (i in 1:length(dirs)) {
-    netIterX <- readRDS(list.files(paste0(dirs[i], "/Net/"), pattern=".50.rds$", full.names=T))
-    results <- myGenCrossTabPlot(netIter0$moduleColors,
-                                 netIterX$moduleColors,
-                                 tissue1="Original",
-                                 tissue2=paste0("Iter", i),
-                                 plot=plot,
-                                 plot.file=NULL)
-
-    allResults[[i]] <- results
-  }
-
-  toReturn <- data.frame(subcluster=as.character(),
-                         ier=as.character(),
-                         module=as.character(),
-                         criteria=as.character())
-
-  for (iter in 1:length(allResults)) {
-    for (module in 1:ncol(allResults[[iter]])) {
-      index <- which(allResults[[iter]][, module]<0.05)
-
-      if(length(index)==0) {
-        toReturn <- rbind(toReturn, c(subcluster, paste0("iter", iter), colnames(allResults[[iter]])[module], "exclusive"))
-      }
-    }
-  }
-
-  colnames(toReturn) <- c("subcluster", "iter", "module", "criteria")
-
-  return(toReturn)
-}
-
-
-
-
 #' getMarkersList - It returns a list of markers.
 #'
 #' @param type it indicates the kind of markers you want to get
@@ -155,7 +38,8 @@ getMarkersList <- function(type=c("GenomicsEngland", "PD", "cellTypeMarker", "DN
 
   markersList <- list()
 
-  the.dir = system.file("", "markers", package = "scCoExpNets")
+  # the.dir = system.file("", "markers", package = "scCoExpNets")
+  the.dir <- "C:/Users/alici/OneDrive/Documentos/collabBackUp/scCoExpNets/inst/markers/"
   files = list.files(path=the.dir, full.names = T)
 
   if(type=="cellTypeMarker") {
@@ -204,6 +88,7 @@ getFisherTest <- function(dir=getwd(),
     genesList <- getMarkersList(type=markersList)
   } else {
     genesList <- markersList
+    markersList <- "newList"
   }
 
   # List network if bulk or networks if single-cell
@@ -241,7 +126,7 @@ getFisherTest <- function(dir=getwd(),
                                        test="fisher",
                                        oldform=F)
 
-        netResult <- c(subcluster, iter, module, "PDgenesClustering", names(genesList)[set], total.specific, total.net, n.module, n.module.and.specific, paste0(intersect(names(net$moduleColors[net$moduleColors==module]), myGenes), collapse=", "), test$p.value)
+        netResult <- c(subcluster, iter, module, markersList, names(genesList)[set], total.specific, total.net, n.module, n.module.and.specific, paste0(intersect(names(net$moduleColors[net$moduleColors==module]), myGenes), collapse=", "), test$p.value)
         results <- rbind(results, netResult)
         pvalue <- c(pvalue, test$p.value)
       }
@@ -256,101 +141,6 @@ getFisherTest <- function(dir=getwd(),
 
   return(results)
 }
-
-
-
-
-#' getNewAnnotations - It identifies the annotations that we only find when creating pseudo-cells
-#'
-#' @param dir the path where the networks from the same subcluster are located
-#' @param types if we want to find new annotations from functional enrichment analysis (FEA) or phenotype enrichment analysis (PEA)
-#' @return
-#' @export
-#' @examples
-
-getNewAnnotations <- function(dir=getwd(),
-                              types=c("FEA", "PEA")) {
-
-  allFiles <- list.files(dir, recursive=T, full.names=T)
-  toReturn <- list()
-
-  for (type in types) {
-    files <- allFiles[grep(type, allFiles)]
-    iterFiles <- files[grep("iter", files)]
-    originalFile <- setdiff(files, iterFiles)
-
-    subcluster <- getSubclusterName(originalFile)[["subcluster"]]
-    iter <- getSubclusterName(originalFile)[["iter"]]
-
-    originalTerms <- read_csv(originalFile)
-    originalTermsNames <- unique(originalTerms$term_name)
-    newTerms <- data.frame()
-
-    for (iter in 1:length(iterFiles)) {
-      iterNewTerms <- read_csv(iterFiles[iter])
-      iterNewTerms <- iterNewTerms[-which(iterNewTerms$term_name %in% originalTermsNames), ]
-
-      if(type=="FEA") {
-        cols <- c("query", "term_name", "p_value", "IC", "source")
-      } else {
-        cols <- c("module", "term_name", "adjust_pvalue", "source")
-      }
-
-      iterNewTerms <- cbind(rep(subcluster, nrow(iterNewTerms)), rep(paste0("iter", iter), nrow(iterNewTerms)), iterNewTerms[, cols])
-      newTerms <- rbind(newTerms, iterNewTerms)
-    }
-    newTerms <- cbind(newTerms[, 1:3], "newAnnotations", newTerms[, 4:ncol(newTerms)])
-    colnames(newTerms)[1:4] <- c("subcluster", "iter", "module", "criteria")
-    toReturn[[type]] <- newTerms
-  }
-
-  return(toReturn)
-}
-
-
-
-#' getAnnotations -  It returns both the functional and phenotype enrichment annotations of the modules selected.
-#'
-#' @param df the data frame obtained from any of the previous functions that shows some interesting modules.
-#' @param dir the path where the networks from the same subcluster are located
-#' @return a list containing both the functional and the phenotype enrichment analysis annotations for the modules selected from each iteration
-#' @export
-#' @examples
-
-getAnnotations <- function(df,
-                           dir=getwd()) {
-
-  dirs <- list.dirs(dir, recursive=T)
-  pegTerms <- data.frame()
-  gprofTerms <- data.frame()
-
-  for (i in 1:nrow(df)) {
-    if(df$iter[i]!="iter0") {
-      name <- paste0(df$subcluster[i], "_", df$iter[i])
-      nameDir <- dirs[grep(name, dirs)][1]
-    } else {
-      name <- df$subcluster[i]
-      nameDir <- paste0(dirs[grep(name, dirs)][1], "/", name)
-    }
-
-    gprof <- read_csv(list.files(paste0(nameDir, "/Net"), pattern=".gprof.csv", full.names=T))
-    gprof <- gprof[gprof$query==df$module[i], ]
-    gprof <- cbind(rep(df$subcluster[i], nrow(gprof)), rep(df$iter[i], nrow(gprof)), gprof[, c("query", "term_name", "p_value", "IC", "source")])
-    gprofTerms <- rbind(gprofTerms, gprof)
-
-    peg <- read_csv(list.files(paste0(nameDir, "/Net"), pattern=".PEG.csv", full.names=T))
-    peg <- peg[peg$module==df$module[i], ]
-    peg <- cbind(rep(df$subcluster[i], nrow(peg)), rep(df$iter[i], nrow(peg)), peg[, c("module", "term_name", "adjust_pvalue", "source")])
-    pegTerms <- rbind(pegTerms, peg)
-  }
-
-  colnames(gprofTerms)[1:2] <- c("subcluster", "iter")
-  colnames(pegTerms)[1:2] <- c("subcluster", "iter")
-
-  return(list(gprofTerms=gprofTerms, pegTerms=pegTerms))
-}
-
-
 
 
 #' myfgsea - It applies a gene set enrichment analysis on one module based on a list of markers selected
@@ -383,7 +173,7 @@ myfgsea <- function(net,
     result <- fgsea::fgsea(pathways = markersList,
                            stats    = mystats,
                            eps = 0.0,
-                           minSize  = 15,
+                           minSize  = 10,
                            maxSize  = 500)
 
     df <- rbind(df, cbind(rep(subcluster, nrow(result)), rep(iter, nrow(result)), rep(module, nrow(result)), result))
@@ -391,7 +181,7 @@ myfgsea <- function(net,
   colnames(df)[1:3] <- c("subcluster", "iter", "module")
 
   df$padj2 <- p.adjust(df$padj, method="BH")
-  df <- df[df$padj2<0.05, ]
+  # df <- df[df$padj2<0.05, ]
 
   return(df)
 }
@@ -415,7 +205,7 @@ getfgsea <- function(dir=getwd(),
                      metadata=NULL,
                      markersType=c("GenomicsEngland", "cellTypeMarker", "PD", "DNs", "DEGs", "ferroptosis"),
                      type=c("bulk", "sc"),
-                     myiter=F,
+                     pseudoCell=F,
                      cutoff=200) {
 
 
@@ -430,7 +220,7 @@ getfgsea <- function(dir=getwd(),
     markersList <- markersType
     prefix="myList"
   }
-  cat("Number of markers list to check", length(markersList), "\n")
+  cat("Number of lists to check", length(markersList), "\n")
 
   nets <- list.files(dir, pattern=".50.rds$", recursive=T, full.names=T)
   nets <- nets[!duplicated(nets)]
@@ -456,9 +246,9 @@ getfgsea <- function(dir=getwd(),
   finaldf <- rbind(finaldf, df)
 
 
-  if(type=="sc" & myiter==T) {
-    print(metadataDir)
-    metaData <- readRDS(metadataDir)
+  if(type=="sc" & pseudoCell==T) {
+    print(metadata)
+    metaData <- readRDS(metadata)
 
     while(ncol(exprData) > cutoff) {
       iter <- iter + 1
@@ -577,5 +367,200 @@ getModuleTraitCorrModel <- function(MEs, metadata) {
 
   return(results=results)
 
+}
+
+
+#' myPreservationOneWay
+#'
+#' @param
+#' @return
+#' @export
+#' @examples
+
+myPreservationOneWay <- function (network, expr.data.files = NULL, tissues = c("snig",
+                                                                               "putm"), permutations = 200, maxModuleSize = 5000, maxGoldModuleSize = 400,
+                                  randomSeed = 1)
+{
+  cat("Entering preservation\n")
+  n1.shortname = tissues[1]
+  n2.shortname = tissues[2]
+  if (typeof(network) == "character") {
+    print(paste0("Reading network ", network))
+    network1 <- readRDS(network)
+  }
+  else {
+    network1 = network
+  }
+  print(tissue1 <- tissues[1])
+  print(tissue2 <- tissues[2])
+  print(paste0(tissue1, " vs. ", tissue2))
+  if (tissues[1] == tissues[2])
+    stop("Can't do a preservation against self")
+  options(stringsAsFactors = FALSE)
+  print(paste0("Reading expression data for tissue ", tissues[1]))
+  if (typeof(expr.data.files[[1]]) == "character") {
+    expression.data1 <- readRDS(expr.data.files[[1]])
+
+    if(nrow(expression.data1)>1000) {
+      expression.data1 <- expression.data1[sample(1:nrow(expression.data1), 1000), ]
+    }
+
+    cat(expr.data.files[[1]], "\n")
+    cat(nrow(expression.data1), "\n")
+  }
+  else {
+    expression.data1 = expr.data.files[[1]]
+  }
+  print(expression.data1[1:5, 1:5])
+  print(paste0("Reading expression data for tissue ", tissues[2]))
+  if (typeof(expr.data.files[[2]]) == "character") {
+    expression.data2 <- readRDS(expr.data.files[[2]])
+
+    if(nrow(expression.data2)>1000) {
+      expression.data2 <- expression.data2[sample(1:nrow(expression.data2), 1000), ]
+    }
+
+    cat(expr.data.files[[2]], "\n")
+    cat(nrow(expression.data2), "\n")
+  }
+  else expression.data2 = expr.data.files[[2]]
+  print(expression.data2[1:5, 1:5])
+  intersect.g = intersect(colnames(expression.data1), colnames(expression.data2))
+  expression.data1 = expression.data1[, match(intersect.g,
+                                              colnames(expression.data1))]
+  expression.data2 = expression.data2[, match(intersect.g,
+                                              colnames(expression.data2))]
+  network1 = network1$moduleColors[match(intersect.g, names(network1$moduleColors))]
+  network2 = network1
+  cat("We'll use", ncol(expression.data1), "genes for the preservation analysis\n")
+  multiExpr <- list()
+  multiExpr[[1]] <- list(data = expression.data1)
+  multiExpr[[2]] <- list(data = expression.data2)
+  names(multiExpr) <- c(tissues[1], tissues[2])
+  checkSets(multiExpr, checkStructure = FALSE, useSets = NULL)
+  multiColor <- list(network1)
+  names(multiColor) <- c(tissues[1])
+  enableWGCNAThreads(4)
+  print(WGCNAnThreads())
+  system.time({
+    mp <- modulePreservation(multiExpr, multiColor, referenceNetworks = 1,
+                             nPermutations = permutations, networkType = "signed",
+                             maxGoldModuleSize = maxGoldModuleSize, randomSeed = randomSeed,
+                             verbose = 3, maxModuleSize = maxModuleSize, parallelCalculation = TRUE)
+  })
+  return(list(stats=getPreservationStatisticsOneWay(tissues = tissues, presRes = mp), mp=mp))
+}
+
+
+
+
+#' getNewTerms - It returns the new terms obtained only when creating pseudo-cells iterations
+#'
+#' @param nets_dir the path where the networks from the same cell type are located
+#' @param source the source that will be used to compared the enrichment
+#' @return a data frame containing the results of the module-trait association. You will find as many rows as combinations module*covariate
+#' @export a list containing A) the new terms obtained in each pseudo-cell iteration compared to T0; B) a data frame with the number of new terms
+#' obtained in each pseudo-cell iteration compared to T0; c) the enrichment analysis results for all iterations.
+#' @examples
+
+getNewTerms <- function(nets_dir, source) {
+
+  # Load library
+  require(GOSim)
+  require(stringr)
+
+  # List nets
+  nets <- list.files(nets_dir, recursive=T, pattern=".50.rds$", full.names=T)
+  results <- data.frame()
+
+  # Get enrichment per module per net
+  for(net in nets) {
+    name <- gsub("\\..*", "", gsub("net", "", basename(net)))
+    n <- str_split(name, "_iter")[[1]]
+    if(length(n)==1) {
+      iter <- 0
+      ct <- n[1]
+    } else {
+      iter <- n[2]
+      ct <- n[1]
+    }
+    net <- readRDS(net)
+    all.genes <- list()
+
+    for(m in unique(net$moduleColors)) {
+      all.genes[[m]] <- names(net$moduleColors[net$moduleColors==m])
+    }
+
+    enrich <- gprofiler2::gost(all.genes,
+                               correction_method="g_SCS",
+                               sources=source,
+                               organism = "hsapiens",
+                               exclude_iea = T,
+                               highlight = T)$result
+
+    enrich$ct <- rep(ct, nrow(enrich))
+    enrich$iter <- rep(iter, nrow(enrich))
+    results <- rbind(results, enrich)
+  }
+
+  # Calculate information content
+  # setOntology("CC", loadIC=FALSE)
+  # calcICs(getwd())
+  # setOntology("MF", loadIC=FALSE)
+  # calcICs(getwd())
+  # setOntology("BP", loadIC=FALSE)
+  # calcICs(getwd())
+
+  # Load information content
+  ic <- c()
+  load(file="C:/Users/alici/Downloads/paperSeb/aarmdv2/files/ICsCChumanall.rda")
+  ic <- c(ic, IC)
+  load(file="C:/Users/alici/Downloads/paperSeb/aarmdv2/files/ICsBPhumanall.rda")
+  ic <- c(ic, IC)
+  load(file="C:/Users/alici/Downloads/paperSeb/aarmdv2/files/ICsMFhumanall.rda")
+  ic <- c(ic, IC)
+  length(ic)
+
+  # Get IC for my GO terms
+  myic <- ic[match(results$term_id, names(ic))]
+  results$IC <- as.vector(myic)
+
+  # Get statistics
+  stats <- data.frame()
+  iters <- unique(results$iter)
+  T0 <- results[results$iter==0, ]
+  new_highlighted_terms <- list()
+
+  for (iter in iters) {
+    # New terms in Tn compared to T0
+    Tn <- results[results$iter==iter, ]
+    Tn_terms <- Tn$term_name[Tn$highlighted==T]
+    T0_terms <- T0$term_name[T0$highlighted==T]
+    newTerms_h <- sort(setdiff(Tn_terms, T0_terms))
+    toRemove <- c()
+
+    if(length(newTerms_h)>0) {
+      for (t in 1:length(newTerms_h)) {
+        term <- newTerms_h[t]
+        len <- lengths(str_split(term, " "))
+        if(len==1) {
+          parent <- T0_terms[grep(term, T0_terms)]
+          if(length(parent)>0) {
+            toRemove <- c(toRemove, t)
+          }
+        }
+      }
+    }
+    if(length(toRemove)>0) {
+      newTerms_h <- newTerms_h[-toRemove]
+    }
+    new_highlighted_terms[[iter]] <- newTerms_h
+    IC_h <- round(mean(Tn$IC[Tn$highlighted==T]), 2)
+    stats <- rbind(stats, c(ct, iter, IC_h, length(newTerms_h)))
+  }
+
+  colnames(stats) <- c("ct", "iter", "IC_highlighted", "new_highlighted")
+
+  return(list(newTerms=new_highlighted_terms, stats=stats, enrich=enrich))
 }
 
