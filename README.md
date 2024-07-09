@@ -7,9 +7,9 @@ Here, we present a new computational method, scCoExpNets, to create and analyze 
 scCoExpNets is an easy-to-use package that contains all the functionalities to manage multiple GCNs at the same time, including new ways to annotate the modules (custom gene set enrichment analysis), new ways to visualize them (sunburst, sankey plot, enrichment map) and automatic detection of interesting modules (custom criteria). 
 
 
-![sunburst](./figures/sunburst.png){width=250}
-![sunburst](./figures/sankey_plot.png){width=150}
-![sunburst](./figures/enrichment_map.png){width=100}
+![sunburst](./figures/sunburst.png =x250)
+![sunburst](./figures/sankey_plot.png =x50)
+![sunburst](./figures/enrichment_map.png =x150)
 
 ## Installation
 
