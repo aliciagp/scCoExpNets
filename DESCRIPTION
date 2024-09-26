@@ -5,13 +5,14 @@ Version: 0.1.0
 Authors@R: c(person("Alicia", "Gómez-Pascual", email = "alicia.gomez1@um.es", 
     role = c("aut", "cre")), person("Juan A.", "Botía", role = "aut"))
 Maintainer: <alicia.gomez1@um.es>
-Description: We propose a new strategy to tackle single-cell sparsity: 
-    for each cell type, we collapse pairs of cells that belongs to the 
-    same individual while the number of cells is > 200, thus getting multiple matrices 
-    and multiple scGCNs. Then, we characterize each module of each GCN based on 
-    different criteria: functional enrichment analysis, phenotype enrichment analysis, 
-    module-trait corr, cell type markers enrichment and neurological disorders panel 
-    enrichment.
+Description: scCoExpNets is an easy-to-use multi-model method to create single-cell gene co-expression networks. For each cell-type, it collapse
+    pairs of cells that belongs to the same individual while the number of cells is over a threshold, thus getting multiple matrices 
+    and multiple scGCNs for the same cell type. Thanks to the creation of multiple networks for the same cell type, scCoExpNets is able to detect
+    modules robust to sparsity through pseudo-cells iterations as well as modules that evolves through iterations leading to potentially 
+    interesting modules. Similarly, scCoExpNets allow the user to detect GO subgraphs maintained in all iterations as well as GO subgraphs that
+    emerge through pseudo-cells iterations as completely new subgraphs or more specialized or expanded subgraphs. To compare multiple networks from
+    the same cell type, scCoExpNets includes new ways to annotate the modules, new types of visualization as well as interactive browser to detect
+    interesting modules. 
 License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
@@ -38,6 +39,6 @@ Imports:
     htmltools,
     d3r,
     sunburstR
-RoxygenNote: 7.1.0
+RoxygenNote: 7.3.1
 URL: https://github.com/aliciagp/scCoExpNets
 BugReports: https://github.com/aliciagp/scCoExpNets/issues

@@ -5,7 +5,6 @@
 #' @param pair it represents the ID of the cells. To group the cells per individual, it is necessary that individual ID is included in cell ID
 #' @return a data frame containing pairs of cells grouped per individual ID. The data frame contains three columns: cell1, cell2, sampleID
 #' @export
-#' @examples
 
 pair <- function(indexes, paired){
 
@@ -62,7 +61,6 @@ pair <- function(indexes, paired){
 #' @param outputDir if save=TRUE, in which directory we would like to save the files created
 #' @return it returns a list where the first element represents the pseudo-cells matrix and the second one represents the pseudo-cells metadata table
 #' @export
-#' @examples
 
 pseudoCells <- function(exprData, covs, save=F, outputDir=paste0(getwd(), "/pseudoCells/")) {
 
@@ -112,63 +110,6 @@ pseudoCells <- function(exprData, covs, save=F, outputDir=paste0(getwd(), "/pseu
   return(myResults)
 }
 
-
-
-
-#' fromEnsemblIDtoExternalName - It changes from ensemble genes nomenclature to HGNC nomenclature if necessary.
-#' It is an auxiliary function.
-#'
-#' @param genes a list of ensembl gene names
-#' @return it returns a list where the first element represents the external gene names and the second one represents the ensembl gene names
-#' @export
-#' @examples
-
-fromEnsemblIDtoExternalName <- function(genes) {
-
-  # Check arguments
-  if (missing(genes)) { stop("Please provide a list of genes\n")}
-
-  # Load library
-  require(biomaRt)
-
-  match <- grep("ENSG", genes)
-
-  if (length(match)>0) {
-    cat("A nomenclature of ensemble_gene_id has been detected, changing to external gene name...\n")
-    cat("Number of genes before changing the nomenclature:", length(genes), "\n")
-
-    # Get the external gene names
-    mart=biomaRt::useMart(biomart="ENSEMBL_MART_ENSEMBL",dataset="hsapiens_gene_ensembl")
-    genesNames <- biomaRt::getBM(attributes=c("ensembl_gene_id","external_gene_name"),
-                                filters="ensembl_gene_id",
-                                values=genes,
-                                mart=mart,
-                                useCache=FALSE)
-
-    # Remove duplicated genes
-    duplicatedGenes <- duplicated(genesNames$external_gene_name)
-    genesNames <- genesNames[grep("FALSE", duplicatedGenes), ]
-
-    # Change the nomenclature of genes in the original matrix
-    index <- match(genes, genesNames$ensembl_gene_id)
-    genesNames2 <- genesNames[index[!is.na(index)], ]
-    genes_HGCN <- genesNames2$external_gene_name
-    genes_ensembl <- genesNames2$ensembl_gene_id
-
-    cat("Number of genes after changing the nomenclature:", length(genes_HGCN), "\n")
-    cat("Showing some examples of gene names with the new nomenclature", genes_HGCN[1:5], "\n")
-
-    return(list(genes_HGCN=genes_HGCN, genes_ensembl=genes_ensembl))
-
-  } else {
-    cat("An external gene name nomenclature has been detected, nothing needs to be changed.\n")
-    return(genes)
-  }
-}
-
-
-
-
 #' prepareData - It checks if the gene expression matrix and the metadata files are ready for batch effect correction and/or surrogate variable analysis.
 #'
 #' @param exprData a normalized cell type cluster matrix
@@ -180,7 +121,6 @@ fromEnsemblIDtoExternalName <- function(genes) {
 #' @param filteringProportion if filteringGenes=TRUE, filteringProportion represents the proportion of cells
 #' @return it returns a list containing our data ready. The first element represents the gene expression matrix and the second one, the metadata table.
 #' @export
-#' @examples
 
 prepareData <- function(exprData, covs, batchCov=NULL, idCov, filteringGenes=F, filteringCutoff=NULL, filteringProportion=NULL) {
 
@@ -237,24 +177,6 @@ prepareData <- function(exprData, covs, batchCov=NULL, idCov, filteringGenes=F, 
     filteredData <- exprData
   }
 
-  # Check the name of the genes (rows)
-  cat("Checking the name of genes in the gene expression matrix\n")
-
-  match <- grep("ENSG", rownames(filteredData))
-
-  if (length(match)>0) {
-
-    genesNames <- fromEnsemblIDtoExternalName(rownames(filteredData))
-
-    if (length(genesNames[["genes_ensembl"]])<nrow(filteredData)) {
-      filteredData <- filteredData[match(genesNames[["genes_ensembl"]], rownames(filteredData)), ]
-      rownames(filteredData) <- genesNames[["genes_HGCN"]]
-    } else {
-      rownames(filteredData) <- genesNames[["genes_HGCN"]]
-    }
-    stopifnot(identical(rownames(filteredData), genesNames[["genes_HGCN"]]))
-  }
-
   cat("Quantile-normalisation\n")
   genesNames = rownames(filteredData)
   samplesNames = colnames(filteredData)
@@ -279,7 +201,6 @@ prepareData <- function(exprData, covs, batchCov=NULL, idCov, filteringGenes=F, 
 #' @param outputDir if save=TRUE, in which directory the plot will be saved
 #' @return it shows a MDs plot with a small set of cells
 #' @export
-#' @examples
 
 plotMDS_Batch <- function(exprData, covs, batchCov, name,
                           save=F, outputDir=getwd()) {
@@ -334,7 +255,6 @@ plotMDS_Batch <- function(exprData, covs, batchCov, name,
 #' @param outputDir if save=TRUE, in which directory the plot will be saved
 #' @return it returns the gene expression matrix corrected by batch effect
 #' @export
-#' @examples
 
 combatCorrect <- function(preparedExprData,
                           preparedCovs,
@@ -406,7 +326,6 @@ combatCorrect <- function(preparedExprData,
 #' @param residsOutout if save=TRUE, the directory where the residuals file will be saved
 #' @return it returns the residuals matrix (genes at columns and cells at rows)
 #' @export
-#' @examples
 
 svaCorrection <- function(combatExprData,
                          preparedCovs,
@@ -564,372 +483,7 @@ svaCorrection <- function(combatExprData,
 
 
 
-
-#' myGetProfilerOnNet - It returns the results of a functional enrichment analysis applied on each module of the selected network.
-#' It is based on CoExpNets function getGprofilerOnNet, but this one is based on gprofiler2 package.
-#'
-#' @param net.file the pathway of the network selected for the functional enrichment analysis
-#' @param filter the databases we want to use for functional enrichment analysis (default databases are GO, KEGG and REAC)
-#' @param ensembl if ensembl=TRUE, it means that the names of the genes are the ensembl ones
-#' @param exclude.iea if exclude.iea=TRUE, we remove automatically annotations (not manually curated)
-#' @param organism the specie of the organism
-#' @param correction.method the correction method used for functional enrichment analysis (deafult method is gSCS)
-#' @param out.file the name of the file where functional enrichment analysis results will be saved
-#' @return it returns the data frame containing the results of the functional enrichment analysis, where each row represents
-#' one annotation associated with a specific module
-#' @export
-#' @examples
-
-myGetGProfilerOnNet <- function(net.file,
-                                filter=c("GO","KEGG","REAC"),
-                                ensembl=FALSE,
-                                exclude.iea=T,
-                                organism = "hsapiens",
-                                correction.method="gSCS",
-                                out.file=NULL) {
-
-  # require(gprofiler2)
-  # require(CoExpNets)
-
-  if(typeof(net.file) == "character")
-    net <- readRDS(net.file)
-  else
-    net = net.file
-
-  modules = unique(net$moduleColors)
-
-  background <- names(net$moduleColors)
-  if(ensembl)
-    background <- CoExpNets::fromEnsembl2GeneName(background)
-
-  all.genes <- NULL
-  for(module in modules){
-
-    genes <- names(net$moduleColors)[net$moduleColors == module]
-    if(ensembl)
-      genes <- fromEnsembl2GeneName(genes)
-    all.genes[[module]] <- genes
-  }
-
-  go <- gprofiler2::gost(all.genes,
-                         correction_method=correction.method,
-                         #custom_bg=background,
-                         sources=filter,
-                         organism=organism,
-                         exclude_iea=exclude.iea)
-
-  go <- as.data.frame(go$result)
-
-  if(nrow(go) == 0)
-    return(go)
-  #png_fn = paste0(out.file,".png"),
-  #no_isects=T)
-  go.out = cbind(go,rep(NA,nrow(go)))
-  colnames(go.out) = c(colnames(go),"IC")
-
-  go.out$parents <- gsub("\\(|\\)", "", go.out$parents)
-  go.out$parents <- gsub("c", "", go.out$parents)
-  go.out$parents <- gsub("\"", "", go.out$parents)
-  go.out$parents <- as.character(go.out$parents)
-
-  #	#Now we will add our own column with the information content of each term
-  #	#So it is possible to evaluate them
-  cat("Generating IC-BP")
-  loadICsGOSim("GO:BP")
-  mask = go$source == "GO:BP"
-  bp.terms.go = go$term_id[mask]
-  bp.ic.go = IC[bp.terms.go]
-  go.out$IC[mask] = bp.ic.go
-
-  cat("Generating IC-MF")
-  loadICsGOSim("GO:MF")
-  mask = go$source == "GO:MF"
-  mf.terms.go = go$term_id[mask]
-  mf.ic.go = IC[mf.terms.go]
-  go.out$IC[mask] = mf.ic.go
-
-  cat("Generating IC-CC")
-  loadICsGOSim("GO:CC")
-  mask = go$source == "GO:CC"
-  cc.terms.go = go$term_id[mask]
-  cc.ic.go = IC[cc.terms.go]
-  go.out$IC[mask] = cc.ic.go
-  #
-  #	data("ICsMFhumanall")
-  #	data("ICsCChumanall")
-
-  if(!is.null(out.file)){
-    write.csv(go.out,out.file)
-    cat("Obtained",nrow(go),"terms saved at",out.file,"\n")
-  }else{
-    cat("Obtained",nrow(go),"terms\n")
-  }
-  return(go.out)
-}
-
-loadICsGOSim = function(onto){
-  stopifnot(onto %in% c("GO:BP","GO:MF","GO:CC"))
-  if(onto == "GO:BP")
-    load(system.file("", "ICsBPhumanall.rda", package = "CoExpNets"),.GlobalEnv)
-  else if(onto == "GO:MF")
-    load(system.file("", "ICsMFhumanall.rda", package = "CoExpNets"),.GlobalEnv)
-  else
-    load(system.file("", "ICsCChumanall.rda", package = "CoExpNets"),.GlobalEnv)
-}
-
-getICReport = function(gprof){
-  ontologies = c("GO:BP","GO:CC","GO:MF")
-  ics = NULL
-  for(onto in ontologies){
-    loadICsGOSim(onto)
-    terms = gprof$term_id[gprof$source == onto]
-    ics[[onto]] = IC[terms]
-    names(ics[[onto]]) = terms
-  }
-  return(ics)
-}
-
-
-
-
-#' phenoExam - It returns the results of a phenotype enrichment analysis applied on each module of the selected network.
-#'
-#' @param net.file the pathway of the network selected for the functional enrichment analysis
-#' @return it returns the data frame containing the results of the phenotype enrichment analysis, where each row represents
-#' one annotation associated with a specific module
-#' @export
-#' @examples
-
-phenoExam <- function(net.file) {
-
-  require(PhenoExam)
-
-  if(typeof(net.file) == "character")
-    net <- readRDS(net.file)
-  else
-    net = net.file
-
-  modules = unique(net$moduleColors)
-
-  databases <- getdbnames()
-
-  enrichResults <- as.data.frame(matrix(numeric(), nrow = 0, ncol = 9))
-
-  for (module in modules) {
-    myModuleGenes <- names(net$moduleColors[net$moduleColors==module])
-    enrichModule <- PhenoExam::PhenoEnrichGenes(genes= myModuleGenes, database=databases, url=F)
-    enrichModule <- enrichModule$alldata
-    enrichModule <- enrichModule[enrichModule$adjust_pvalue<0.05, ]
-    enrichModule <- as.data.frame(cbind(enrichModule, rep(module, nrow(enrichModule))))
-
-    enrichResults <- rbind(enrichResults, enrichModule)
-  }
-
-  colnames(enrichResults)[10] <- "module"
-
-  # Removing not interesting terms
-  index <- which(enrichResults$term_name %in% c("No diseases associated", "No CRB phenotype", "No HPO phenotype"))
-
-  if(length(index)>0) {
-    enrichResults <- enrichResults[-index, ]
-  }
-
-  return(enrichResults)
-
-}
-
-
-
-
-#' myGenAnnotationCellType - It returns the results of the cell type markers enrichment for each module of a selected network using a Fisher's exact test.
-#' It is based on genAnnotationCellType function from CoExpNets.
-#'
-#' @param tissue A label to use to refer to the results in files and downstream results
-#' @param which.one if we would like to use a CoExpNets network already created, which one we would like to use
-#' @param markerspath the path where the markers files are located
-#' @param net.in the path or the variable name that contains the selected network
-#' @param legend
-#' @param doheatmap
-#' @param notHuman
-#' @param plot.file
-#' @param threshold
-#' @param return.processed
-#' @param getMarkerSize
-#' @param getOnlyOverlap
-#' @param getMyOwnTest
-#' @param applyFDR
-#' @param display.cats
-#' @return it returns a data frame with one column per module, one row per cell type markers list and each cell containing
-#' the result of a Fisher's exact test.
-#' @export
-#' @examples
-
-myGenAnnotationCellType = function(tissue="None",
-                                   which.one="new",
-                                   markerspath=system.file("ctall", "",
-                                                           package = "CoExpNets"),
-                                   net.in=NULL,
-                                   legend=NULL,
-                                   doheatmap=T,
-                                   notHuman=F,
-                                   plot.file=NULL,
-                                   threshold=20,
-                                   return.processed=F,
-                                   getMarkerSize=F,
-                                   getOnlyOverlap=F,
-                                   getMyOwnTest=F,
-                                   applyFDR=F,
-                                   display.cats=NULL){ #This last flag FALSE when you want the raw p-values
-
-  # require(gplots)
-
-  cat("Entering genAnnotationCellType with",which.one,"\n")
-
-  if(which.one == "new"){
-    if(typeof(net.in) == "character")
-      net = readRDS(net.in)
-    else
-      net = net.in
-  }else{
-    net = getNetworkFromTissue(tissue=tissue,which.one=which.one)
-  }
-  modules = unique(net$moduleColors)
-  if(notHuman)
-    names(net$moduleColors) = toupper(names(net$moduleColors))
-  #So the 1st heatmap
-  #will have a column for each cell.types element and a row for
-  #each module and we will show -log10(p-values) in a scale
-
-  files = list.files(path=markerspath,full.names = T)
-  files = files[grep(pattern=".txt$",files)]
-  if(getMarkerSize){
-    sizes = lapply(files,function(x){
-      nrow(read.delim(x,header=T))
-    })
-    return(cbind(markerset=files,genes=sizes))
-  }
-
-
-  markernames = gsub(".txt","",basename(files))
-
-
-  ctypes = markernames
-  ctypedata = matrix(ncol=length(modules),nrow=length(files))
-  ctypedata[,] = 1
-  rownames(ctypedata) = ctypes
-  colnames(ctypedata) = modules
-
-  if(getOnlyOverlap){
-    myfunction = Vectorize(function(m,f){
-      submarkers = read.delim(f,stringsAsFactors=F,header=T)[,1]
-      #cat("Module is",m,"file is",f,"\n")
-      #print(names(net$moduleColors)[net$moduleColors == m])
-      #print(submarkers)
-      return(sum(submarkers %in% names(net$moduleColors)[net$moduleColors == m]))
-    })
-
-    overlap = outer(modules,files,myfunction)
-    colnames(overlap) = gsub(".txt","",basename(files))
-    rownames(overlap) = modules
-    if(applyFDF){
-      overlap = p.adjust(overlap,method="fdr")
-    }
-    return(overlap)
-
-  }
-
-  if(getMyOwnTest){
-    myfunction = Vectorize(function(m,f){
-      submarkers = read.delim(f,stringsAsFactors=F,header=T)[,1]
-      ov = sum(submarkers %in% names(net$moduleColors)[net$moduleColors == m])
-      nm = sum(net$moduleColors == m)
-
-      #cat("Module is",m,"file is",f,"\n")
-      #print(names(net$moduleColors)[net$moduleColors == m])
-      #print(submarkers)
-      return(testGeneSet(n.module=nm,total.specific=length(submarkers),
-                         total.net=length(net$moduleColors),n.module.and.specific=ov)$p.value)
-    })
-
-    overlap = outer(modules,files,myfunction)
-    colnames(overlap) = gsub(".txt","",basename(files))
-    rownames(overlap) = modules
-    return(overlap)
-
-  }
-
-
-
-  all.gene.names = names(net$moduleColors)
-  all.gene.names = CoExpNets::fromAny2GeneName(names(net$moduleColors))
-
-  tmp.enr.f = paste0(markerspath,"enrichment_tmp.csv")
-  if(file.exists(tmp.enr.f))
-    file.remove(tmp.enr.f)
-  ukbec.en = WGCNA::userListEnrichment(all.gene.names,net$moduleColors,files,
-                                       nameOut=tmp.enr.f)
-  if(file.exists(tmp.enr.f)){
-    enrichment = read.csv(tmp.enr.f,
-                          stringsAsFactors=F)
-
-    for(i in 1:nrow(enrichment)){
-      module = enrichment$InputCategories[i]
-      for(j in 1:length(files)){
-        if(grepl(ctypes[j],enrichment$UserDefinedCategories[i]))
-          break
-      }
-      category = ctypes[j]
-      ctypedata[category,module] = enrichment$CorrectedPvalues[i]
-    }
-  }
-  rownames(ctypedata) = gsub("cell_type_TableS1.csv.","",rownames(ctypedata))
-  uctypedata = ctypedata
-  ctypedata = ctypedata[,apply(ctypedata,2,function(x){ any(x < 1)}),drop=FALSE]
-  ctypedata = -log10(ctypedata)
-  ctypedata[is.infinite(ctypedata)] = max(ctypedata[!is.infinite(ctypedata)])
-
-  if(threshold > 0)
-    ctypedata[ctypedata > threshold] = threshold
-  #Order by cell type
-
-  ctypedata = ctypedata[order(rownames(ctypedata)),,drop=FALSE]
-
-  ctypedata = ctypedata[apply(ctypedata,1,function(x){ any(x > 2)}),]
-
-
-  if(doheatmap){
-    ctypedata = as.data.frame(ctypedata)
-    if((ncol(ctypedata) >= 2) && nrow(ctypedata) >=2){
-      ctypedata = as.matrix(ctypedata)
-      if(is.null(legend))
-        legend = tissue
-      if(!is.null(plot.file))
-        pdf(plot.file,width=15,height=8)
-        gplots::heatmap.2(ctypedata,
-                  trace="none",
-                  col=heat.colors(100)[100:1],
-                  cexCol=1.0,
-                  cexRow=1.0,
-                  Rowv=F,
-                  Colv=T,
-                  main=paste0("Cell type enrichment for ",legend),
-                  key=F,srtCol=45,dendrogram="none",
-                  margins=c(6,20))
-      y= ctypedata
-      if(!is.null(plot.file))
-        dev.off()
-    }
-  }
-
-  if(return.processed)
-    return(ctypedata)
-  return(uctypedata)
-}
-
-
-
-
-#' myGetDownstreamNetwork - It creates and annotates a single-cell gene co-expression network
+#' getModules - It creates and annotates a single-cell gene co-expression network
 #' It is based on getDownstreamNetwork function from CoExpNets.
 #'
 #' @param tissue A label to use to refer to the results in files and downstream results
@@ -955,25 +509,24 @@ myGenAnnotationCellType = function(tissue="None",
 #' @return it returns a data frame with one column per module, one row per cell type markers list and each cell containing
 #' the result of a Fisher's exacta test.
 #' @export
-#' @examples
 
-myGetDownstreamNetwork = function(tissue="mytissue",
-                                  n.iterations=50,	#Number of iterations for k-means, 50 recommended
-                                  min.exchanged.genes=20,
-                                  expr.data, 	#We expect a file name pointing to a dataframe (RDS format) with
-                                  #genes in columns and samples in rows. Each gene name appears
-                                  #in the column name. Better to use gene symbols as names
-                                  beta=-1,	#If -1 the algorithm will seek for the best beta
-                                  job.path="~/tmp/",	#Where to store all results
-                                  min.cluster.size=30,		#Minimum number of genes to form a cluster
-                                  net.type="signed",			#Leave it like that (see WGCNA docs)
-                                  debug=F,
-                                  blockTOM=F,
-                                  save.tom=F,
-                                  save.plots=F,
-                                  excludeGrey=FALSE,
-                                  fullAnnotation=T,
-                                  silent=T){
+getModules = function(tissue="mytissue",
+                      n.iterations=50,	#Number of iterations for k-means, 50 recommended
+                      min.exchanged.genes=20,
+                      expr.data, 	#We expect a file name pointing to a dataframe (RDS format) with
+                      #genes in columns and samples in rows. Each gene name appears
+                      #in the column name. Better to use gene symbols as names
+                      beta=-1,	#If -1 the algorithm will seek for the best beta
+                      job.path="~/tmp/",	#Where to store all results
+                      min.cluster.size=30,		#Minimum number of genes to form a cluster
+                      net.type="signed",			#Leave it like that (see WGCNA docs)
+                      debug=F,
+                      blockTOM=F,
+                      save.tom=F,
+                      save.plots=F,
+                      excludeGrey=FALSE,
+                      fullAnnotation=F,
+                      silent=T){
 
   final.net=NULL
   distance.type="cor"
@@ -1061,23 +614,9 @@ myGetDownstreamNetwork = function(tissue="mytissue",
       plotEGClustering(which.one="new",tissue=final.net)
       dev.off()
     }
-    if(fullAnnotation){
-      go = myGetGProfilerOnNet(net.file=final.net,
-                               out.file=paste0(final.net,"_gprof.csv"))
 
-      write.csv(myGenAnnotationCellType(net.in=final.net,
-                                        return.processed = F,
-                                        doheatmap=save.plots,
-                                        tissue=tissue,
-                                        plot.file=paste0(final.net, "_celltype.pdf")),
-                paste0(final.net,"_celltype.csv"))
-
-      write.table(CoExpNets::getMM(final.net,expr.data,genes=NULL),paste0(final.net, "_getMM.csv"),quote=F,row.names=F, sep="\t")
-      write.csv(phenoExam(final.net), paste0(final.net, "_PEG.csv"))
-    }
-
-
-    return(final.net)
+    return(list(final.net=final.net, name=paste0(job.path,"/","net",tissue,".",
+                                            net.and.tom$net$beta,".it.",n.iterations,".rds")))
   }
   outnet
 }
@@ -1085,41 +624,53 @@ myGetDownstreamNetwork = function(tissue="mytissue",
 
 
 
-#' getNet - It applies the whole pipeline to create and annotate a cell-type-specific sginel-cell gene co-expression network
+#' get_Ti_GCN - It creates and annotates a Ti GCN of a specific cell type cluster. It is an auxiliary function of get_all_GCNs function.
 
 #' @param exprData a normalized cell type cluster gene expression matrix
-#' @param covs a cell type cluster metadata table
-#' @param batchCov the variable name that represents the batch if exists
-#' @param idCov the variable name that represents the individuals ID
-#' @param bioCovsToCorrect the biological or technical covariates that we are not interested in and we want to remove their effect on our data
-#' @param name the name of the cluster
+#' @param metadata a cell type cluster metadata table
+#' @param gcnName the name of the network
+#' @param idColname the name of the column that contains donors' ID
+#' @param batchColname the name of the column that contains batch effect information
+#' @param covsToCorrect the biological or technical covariates names that we are not interested in and we want to remove their effect on our data
 #' @param filteringGenes if filteringGenes=TRUE, we want to apply gene filtering based on a minimum expression value or cutoff on a percentage of cells
 #' @param filteringCutoff if filteringGenes=TRUE, filteringCutoff represents the minimum expression value
 #' @param filteringProportion if filteringGenes=TRUE, filteringProportion represents the percentage of cells
 #' @param plots if plots=TRUE, plots will be saved
-#' @param path the path where we want that files are saved
+#' @param path the path where the files will be saved
+#' @param moduleTraitCorr, if moduleTraitCorr=T, the asociation between module eigengenes and traits will be estimated
+#' @param covsToCorr=NULL, if moduleTraitCorr=T, covsToCorr includes the traits to be evaluated
+#' @param phenotypeEnrich=T, if phenotypeEnrich=T, phenotype enrichment analysis will be carried out for each module of the network
+#' @param correction.method the correction method used for functional enrichment analysis (deafult method is gSCS)
+#' @param sources the databases we want to use for functional enrichment analysis (default databases are GO, KEGG and REAC)
+#' @param organism the specie of the organism
+#' @param exclude.iea if exclude.iea=TRUE, we remove automatically annotations (not manually curated)
 #' @return it returns a new folder containing theses files: the residuals, the network, the functional enrichment analysis results,
 #' the phenotype enrichment analysis results, the cell type markers enrichment and module membership.
 #' @export
-#' @examples
 
-getNet <- function(exprData,
-                   covs,
-                   batchCov=NULL,
-                   idCov,
-                   bioCovsToCorrect=NULL,
-                   name=deparse(substitute(exprData)),
-                   filteringGenes=F,
-                   filteringCutoff=NULL,
-                   filteringProportion=NULL,
-                   plots=F,
-                   path=getwd()) {
+get_Ti_GCN <- function(exprData,
+                       metadata,
+                       gcnName="GCN1",
+                       idColname=NULL,
+                       batchColname=NULL,
+                       covsToCorrect=NULL,
+                       filteringGenes=F,
+                       filteringCutoff=NULL,
+                       filteringProportion=NULL,
+                       plots=F,
+                       path=getwd(),
+                       moduleTraitCorr=F,
+                       covsToCorr=NULL,
+                       phenotypeEnrich=T,
+                       correction_method="gSCS",
+                       sources=c("GO", "KEGG", "REAC"),
+                       organism="hsapiens",
+                       exclude_iea=T) {
 
   # Check arguments
   if (missing(exprData)) { stop("Please provide an expression matrix\n")}
-  if (missing(covs)) { stop("Please provide a a table of covariates\n")}
-  if (missing(idCov)) { stop("Please provide the name of the variable that represents the id of the samples\n")}
-  if (missing(bioCovsToCorrect)) { stop("Please provide the name of the biological variables for which you want to correct the expression data\n")}
+  if (missing(metadata)) { stop("Please provide a a table of covariates\n")}
+  if (missing(idColname)) { stop("Please provide the name of the variable that represents the id of the samples\n")}
 
   # Load libraries
   require(stringr)
@@ -1136,84 +687,127 @@ getNet <- function(exprData,
   require(gprofiler2)
   require(readr)
 
-  name = gsub("_exprData", "", name)
-
   # Create directories
-  if(!(dir.exists(paste0(path, "/", name)))) {
-    cat("Creating", paste0(path, "/", name), "directory\n")
-    dir.create(paste0(path, "/", name))
-    dir.create(paste0(path, "/", name, "/Net/"))
-    dir.create(paste0(path, "/", name, "/Residuals/"))
+  if(!(dir.exists(paste0(path, "/", gcnName)))) {
+    cat("Creating", paste0(path, "/", gcnName), "directory\n")
+    dir.create(paste0(path, "/", gcnName))
+    dir.create(paste0(path, "/", gcnName, "/Net/"))
+    dir.create(paste0(path, "/", gcnName, "/Residuals/"))
 
     if (plots==T) {
-      dir.create(paste0(path, "/", name, "/Plots/"))
-      dir.create(paste0(path, "/", name, "/Plots/Plots_MDS_Batch/"))
-      dir.create(paste0(path, "/", name, "/Plots/Plots_PCA_Batch/"))
-      dir.create(paste0(path, "/", name, "/Plots/Plots_SVAs/"))
-      dir.create(paste0(path, "/", name, "/Plots/Plots_Net/"))
+      dir.create(paste0(path, "/", gcnName, "/Plots/"))
+      dir.create(paste0(path, "/", gcnName, "/Plots/Plots_MDS_Batch/"))
+      dir.create(paste0(path, "/", gcnName, "/Plots/Plots_PCA_Batch/"))
+      dir.create(paste0(path, "/", gcnName, "/Plots/Plots_SVAs/"))
+      dir.create(paste0(path, "/", gcnName, "/Plots/Plots_Net/"))
     }
   }
 
+  if(is.character(exprData)) {
+    exprData <- readRDS(exprData)
+  }
+
+  if(is.character(metadata)) {
+    metadata <- readRDS(metadata)
+  }
+
   # Preparing data
-  preparedData <- prepareData(exprData, covs, batchCov, idCov, filteringGenes, filteringCutoff, filteringProportion)
+  preparedData <- prepareData(exprData=exprData,
+                              covs=metadata,
+                              batchCov=batchColname,
+                              idCov=idColname,
+                              filteringGenes=filteringGenes,
+                              filteringCutoff=filteringCutoff,
+                              filteringProportion=filteringProportion)
+
   preparedExprData <- preparedData[["normalized_expression"]]
   preparedCovs <- preparedData[["covariates"]]
 
   # MDS plots
-  if (plots==T && !is.null(batchCov)) {
-    plotMDS_Batch(preparedExprData, preparedCovs, batchCov,
+  if (plots==T && !is.null(batchColname)) {
+    plotMDS_Batch(preparedExprData, preparedCovs, batchColname,
                   save = T,
                   outputDir = paste0(path, "/", name, "/Plots/Plots_MDS_Batch/"),
                   name=name)
   }
 
-  if (!is.null(batchCov)) {
+  if (!is.null(batchColname)) {
     # Combat correction
     combatExprData = combatCorrect(preparedExprData,
                                    preparedCovs,
-                                   batchCov,
-                                   bioCovsToCorrect,
+                                   batchColname,
+                                   covsToCorrect,
                                    plots,
-                                   name,
+                                   gcnName,
                                    paste0(path, "/", name, "/Plots/Plots_PCA_Batch/"))
   } else {
     combatExprData = preparedExprData
   }
 
-  if (!is.null(bioCovsToCorrect)) {
+  if (!is.null(covsToCorrect)) {
     # SVA correction
     resids = svaCorrection(combatExprData = combatExprData,
                            preparedCovs = preparedCovs,
-                           bioCovsToCorrect = bioCovsToCorrect,
+                           bioCovsToCorrect = covsToCorrect,
                            plots = plots,
-                           idCov = idCov,
-                           batchCov = batchCov,
-                           name = name,
+                           idCov = idColname,
+                           batchCov = batchColname,
+                           name = gcnName,
                            save = T,
-                           outputDir = paste0(path, "/", name, "/Plots/Plots_SVAs/"),
-                           residsOutput = paste0(path, "/", name, "/Residuals/"))
+                           outputDir = paste0(path, "/", gcnName, "/Plots/Plots_SVAs/"),
+                           residsOutput = paste0(path, "/", gcnName, "/Residuals/"))
 
   } else {
 
     # Without SVA
     resids <- t(combatExprData)
-    saveRDS(resids, paste0(path, "/", name, "/Residuals/", name, "_resids.rds"))
+    saveRDS(resids, paste0(path, "/", gcnName, "/Residuals/", gcnName, "_resids.rds"))
   }
 
-  # Network creation and full annotation
-  net = myGetDownstreamNetwork(tissue=name,
-                               n.iterations=50,
-                               net.type = "signed",
-                               debug=F,
-                               expr.data=resids,
-                               fullAnnotation=T,
-                               save.plots=plots,
-                               job.path=paste0(path, "/", name, "/Net"))
+  rownames <- ave(rownames(resids), rownames(resids), FUN = function(i) paste0(i, '_', seq_along(i)))
+  stopifnot(identical(gsub("_.*", "", rownames), rownames(resids)))
+  rownames(resids) <- rownames
+
+  # Network creation
+  net = getModules(tissue=gcnName,
+                   n.iterations=50,
+                   net.type = "signed",
+                   debug=F,
+                   expr.data=resids,
+                   fullAnnotation=T,
+                   save.plots=plots,
+                   job.path=paste0(path, "/", gcnName, "/Net"))
+
+  final.net <- net$name
+
+  # Modules annotation
+  cat("Get functional enrichment\n")
+  write.csv(getFunctionalEnrichment(net=final.net,
+                                    correction_method=correction_method,
+                                    sources=sources,
+                                    organism=organism,
+                                    exclude_iea=exclude_iea),
+            paste0(final.net, "_functionalEnrich.csv"))
+
+  cat("Get module membership for each gene\n")
+  write.csv(CoExpNets::getMM(final.net,resids,genes=NULL),
+            paste0(final.net, "_moduleMembership.csv"),quote=F,row.names=F, sep="\t")
+
+  if(moduleTraitCorr==T & !is.null(covsToCorr)) {
+    cat("Get module trait corr\n")
+    write.csv(getTraitCorr(net=final.net, metadata=preparedCovs, covsToCorr=covsToCorr),
+              paste0(final.net, "_traitCorr.csv"))
+  }
+
+  if(phenotypeEnrich==T) {
+    cat("Get phenotype enrichment\n")
+    write.csv(getPhenotypeTerms(net=final.net),
+              paste0(final.net, "_phenotypeEnrich.csv"))
+  }
 
   cat("Done.\n")
 
-  # Correlation between modules and covariates
-  path=paste0(path, "/", name, "/")
+  path=paste0(path, "/", gcnName, "/")
 
   # Moving files to their corresponding directories
   if (plots==T) {
@@ -1232,3 +826,184 @@ getNet <- function(exprData,
 
 }
 
+
+#' get_all_GCNs - It creates and annotates a set of GCNs for a specific cell type cluster
+#' @param exprData a normalized cell type cluster gene expression matrix
+#' @param metadata a cell type cluster metadata table
+#' @param gcnName the name of the network
+#' @param idColname the name of the column that contains donors' ID
+#' @param batchColname the name of the column that contains batch effect information
+#' @param minNumCells the minimum number of cells to create a GCN
+#' @param covsToCorrect the biological or technical covariates names that we are not interested in and we want to remove their effect on our data
+#' @param filteringGenes if filteringGenes=TRUE, we want to apply gene filtering based on a minimum expression value or cutoff on a percentage of cells
+#' @param filteringCutoff if filteringGenes=TRUE, filteringCutoff represents the minimum expression value
+#' @param filteringProportion if filteringGenes=TRUE, filteringProportion represents the percentage of cells
+#' @param plots if plots=TRUE, plots will be saved
+#' @param path the path where the files will be saved
+#' @param moduleTraitCorr, if moduleTraitCorr=T, the asociation between module eigengenes and traits will be estimated
+#' @param covsToCorr=NULL, if moduleTraitCorr=T, covsToCorr includes the traits to be evaluated
+#' @param phenotypeEnrich=T, if phenotypeEnrich=T, phenotype enrichment analysis will be carried out for each module of the network
+#' @param correction.method the correction method used for functional enrichment analysis (deafult method is gSCS)
+#' @param sources the databases we want to use for functional enrichment analysis (default databases are GO, KEGG and REAC)
+#' @param organism the specie of the organism
+#' @param exclude.iea if exclude.iea=TRUE, we remove automatically annotations (not manually curated)
+#' @return it returns a new folder containing theses files: the residuals, the network, the functional enrichment analysis results,
+#' the phenotype enrichment analysis results, the cell type markers enrichment and module membership.
+#' @export
+#'
+get_all_GCNs <- function(exprData,
+                         metadata,
+                         gcnName="GCN1",
+                         idColname=NULL,
+                         batchColname=NULL,
+                         minNumCells=200,
+                         covsToCorrect=NULL,
+                         filteringGenes=F,
+                         filteringCutoff=NULL,
+                         filteringProportion=NULL,
+                         plots=F,
+                         path=getwd(),
+                         moduleTraitCorr=F,
+                         covsToCorr=NULL,
+                         phenotypeEnrich=T,
+                         correction_method="gSCS",
+                         sources=c("GO", "KEGG", "REAC"),
+                         organism="hsapiens",
+                         exclude_iea=T) {
+
+  if(is.character(exprData)) {
+    exprData <- readRDS(exprData)
+  }
+
+  if(is.character(metadata)) {
+    metadata <- readRDS(metadata)
+  }
+
+  iter <- 0
+  newExprData <- exprData
+  newMetadata <- metadata
+
+  while(ncol(newExprData) > minNumCells) {
+    newName <- paste0(gcnName, "_iter", iter)
+
+    if(iter>0) {
+      myPseudoCells <- pseudoCells(newExprData, newMetadata)
+      newExprData <- myPseudoCells[[1]]
+      newMetaData <- myPseudoCells[[2]]
+    }
+
+    gcn <- get_Ti_GCN(exprData=newExprData,
+                      metadata=newMetadata,
+                      gcnName=newName,
+                      idColname=idColname,
+                      batchColname=batchColname,
+                      covsToCorrect=covsToCorrect,
+                      filteringGenes=filteringGenes,
+                      filteringCutoff=filteringCutoff,
+                      filteringProportion=filteringProportion,
+                      plots=plots,
+                      path=path,
+                      moduleTraitCorr=moduleTraitCorr,
+                      covsToCorr=covsToCorr,
+                      phenotypeEnrich=phenotypeEnrich,
+                      correction_method=correction_method,
+                      sources=sources,
+                      organism=organism,
+                      exclude_iea=exclude_iea)
+
+    iter <- iter+1
+  }
+
+}
+
+
+
+
+#' getPreservedModules  - Check whether one network module is preserved in a tissue gene expression profile
+#'
+#' @param network The network you want to assess about preservation (full path and file name or a network object).
+#' @param expr.data.files A list with the expression data used to create the network (1st element) and the
+#' expression data onto which we want the network assessed of preservation (2nd element)
+#' @param tissues A vector of strings, to name the tissues
+#' @param permutations The number of random permutations used to construct the null hypothesis. 200 may be a
+#' reasonable number
+#' @param maxModuleSize All modules over this size in genes will be considered as having as much size as this limit
+#' @param maxGoldModuleSize The size of the random module to be used as a reference of a totally random module values
+#' @param randomSeed Seed for the random number generator
+#'
+#' @return A data frame with modules in the rows and statistics at the columns.
+#' @export
+
+getPreservedModules <- function (network, expr.data.files = NULL, tissues = c("snig","putm"),
+                                 permutations = 200, maxModuleSize = 5000, maxGoldModuleSize = 400,
+                                 randomSeed = 1)
+{
+  cat("Entering preservation\n")
+  n1.shortname = tissues[1]
+  n2.shortname = tissues[2]
+  if (typeof(network) == "character") {
+    print(paste0("Reading network ", network))
+    network1 <- readRDS(network)
+  }
+  else {
+    network1 = network
+  }
+  print(tissue1 <- tissues[1])
+  print(tissue2 <- tissues[2])
+  print(paste0(tissue1, " vs. ", tissue2))
+  if (tissues[1] == tissues[2])
+    stop("Can't do a preservation against self")
+  options(stringsAsFactors = FALSE)
+  print(paste0("Reading expression data for tissue ", tissues[1]))
+  if (typeof(expr.data.files[[1]]) == "character") {
+    expression.data1 <- readRDS(expr.data.files[[1]])
+
+    if(nrow(expression.data1)>1000) {
+      expression.data1 <- expression.data1[sample(1:nrow(expression.data1), 1000), ]
+    }
+
+    cat(expr.data.files[[1]], "\n")
+    cat(nrow(expression.data1), "\n")
+  }
+  else {
+    expression.data1 = expr.data.files[[1]]
+  }
+  print(expression.data1[1:5, 1:5])
+  print(paste0("Reading expression data for tissue ", tissues[2]))
+  if (typeof(expr.data.files[[2]]) == "character") {
+    expression.data2 <- readRDS(expr.data.files[[2]])
+
+    if(nrow(expression.data2)>1000) {
+      expression.data2 <- expression.data2[sample(1:nrow(expression.data2), 1000), ]
+    }
+
+    cat(expr.data.files[[2]], "\n")
+    cat(nrow(expression.data2), "\n")
+  }
+  else expression.data2 = expr.data.files[[2]]
+  print(expression.data2[1:5, 1:5])
+  intersect.g = intersect(colnames(expression.data1), colnames(expression.data2))
+  expression.data1 = expression.data1[, match(intersect.g,
+                                              colnames(expression.data1))]
+  expression.data2 = expression.data2[, match(intersect.g,
+                                              colnames(expression.data2))]
+  network1 = network1$moduleColors[match(intersect.g, names(network1$moduleColors))]
+  network2 = network1
+  cat("We'll use", ncol(expression.data1), "genes for the preservation analysis\n")
+  multiExpr <- list()
+  multiExpr[[1]] <- list(data = expression.data1)
+  multiExpr[[2]] <- list(data = expression.data2)
+  names(multiExpr) <- c(tissues[1], tissues[2])
+  checkSets(multiExpr, checkStructure = FALSE, useSets = NULL)
+  multiColor <- list(network1)
+  names(multiColor) <- c(tissues[1])
+  enableWGCNAThreads(4)
+  print(WGCNAnThreads())
+  system.time({
+    mp <- modulePreservation(multiExpr, multiColor, referenceNetworks = 1,
+                             nPermutations = permutations, networkType = "signed",
+                             maxGoldModuleSize = maxGoldModuleSize, randomSeed = randomSeed,
+                             verbose = 3, maxModuleSize = maxModuleSize, parallelCalculation = TRUE)
+  })
+  return(list(stats=getPreservationStatisticsOneWay(tissues = tissues, presRes = mp), mp=mp))
+}

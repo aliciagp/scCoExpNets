@@ -1,19 +1,18 @@
-#' getModulesGenes - It returns the genes that made up each module in each iteration.
+#' getModulesCompositionPerIter  - It returns the genes that made up each module in each iteration.
 #' It is an auxiliary function to create a sunburst plot, sankey plot or enrichment plot.
 #'
 #' @param nets_dir the path where we can find all the networks belonging to the same cell type
 #' @return a data frame containing the number of genes that remain together at the end after successive pseudo-cells iterations
 #' using all possible combinations of modules from different iterations
 #' @export
-#' @examples
 
-getModulesGenes <- function(nets_dir) {
+getModulesCompositionPerIter <- function(nets.dir) {
 
   # Load libraries
   require(stringr)
 
   # Check if the file has been already created
-  nets <- list.files(nets_dir, full.names=T, recursive=T, pattern=".50.rds$")
+  nets <- list.files(nets.dir, full.names=T, recursive=T, pattern=".50.rds$")
   name <- gsub("\\..*", "", gsub("net", "", basename(nets[1])))
 
   # Get modules
@@ -38,7 +37,7 @@ getModulesGenes <- function(nets_dir) {
   names(modulesList) <- unlist(lapply(str_split(names(modulesList), "-"), function(x) paste0(x[1], "-", gsub("[0-9]", "", x[2]))))
 
   # Get gene names
-  genes <- names(readRDS(nets[-grep("iter", nets)])$moduleColors)
+  genes <- names(readRDS(nets[1])$moduleColors)
   results <- data.frame()
 
   for(g in genes) {
@@ -68,7 +67,6 @@ getModulesGenes <- function(nets_dir) {
 #' @param covariate if criteria=="covariate", the name of the biological covariate we are interested in
 #' @return a list containing both the colors assigned and the names of the modules
 #' @export
-#' @examples
 
 getColors <- function(criteria=c("T0_modules", "all_modules", "covariate"),
                       modulesGenes=NULL,
@@ -159,16 +157,13 @@ getColors <- function(criteria=c("T0_modules", "all_modules", "covariate"),
 #'
 #' @param criteria the criteria used to color the modules: "T0_modules", "all_modules" or "covariate".
 #' @param nets_dir the path with all the networks that belong to the same cell type and different iterations.
-#' @param modulesGenes if criteria!="covariate", a data frame with one row per gene and one column per iteration is needed. Each
 #' @param metadata if criteria=="covariate", the path or the data frame with the metadata of all the cells that belong to a specific cell type
 #' @param cellID if criteria=="covariate", the name of the variable that contains the ID of each cell in the metadata table
 #' @param covariate if criteria=="covariate", the name of the biological covariate we are interested in
 #' @return a list containing both the colors assigned and the names of the modules
 #' @export
-#' @examples
 
 getSunburstPlot <- function(criteria=c("T0_modules", "all_modules", "covariate"),
-                            modulesGenes=NULL,
                             nets_dir=NULL,
                             metadata=NULL,
                             cellID="cell_id",
@@ -180,14 +175,7 @@ getSunburstPlot <- function(criteria=c("T0_modules", "all_modules", "covariate")
   require(htmltools)
   require(d3r)
 
-  if(is.null(modulesGenes)) {
-    mg <- getModulesGenes(nets_dir)
-  } else {
-    if(is.character(modulesGenes)) {
-      modulesGenes <- readRDS(modulesGenes)
-    }
-    mg <- modulesGenes
-  }
+  mg <- getModulesCompositionPerIter(nets_dir)
 
   colors <- getColors(criteria=criteria,
                      modulesGenes=mg,
@@ -218,15 +206,11 @@ getSunburstPlot <- function(criteria=c("T0_modules", "all_modules", "covariate")
 #' getSankeyPlot - It returns a sankey plot that shows how the genes of a T0 module of interest are distributed in other modules through pseudo-cells
 #' iterations. The plot contains as many columns as pseudo-cells iterations and each column contains as many boxes as modules in that iteration.
 #' @param module_name the name of the T0 module selected to get the sankey plot.
-#' @param modulesGenes a data frame with as many rows as genes and as many columns as iterations. For each gene (row), you can see the module where
-#' it belongs in each pseudo-cell iteration.
 #' @param nets_dir if modulesGenes is not provided, the path where all the networks of the same cell type and different iterations are located.
 #' @return a sankey plot
 #' @export
-#' @examples
 
 getSankeyPlot <- function(module_name="pink",
-                          modulesGenes=NULL,
                           nets_dir=NULL) {
 
   # Load libraries
@@ -236,15 +220,7 @@ getSankeyPlot <- function(module_name="pink",
   require(ggplot2)
 
   # Get the table
-  if(!is.null(modulesGenes)) {
-    if(is.character(modulesGenes)) {
-      mg <- readRDS(modulesGenes)
-    } else {
-      mg <- modulesGenes
-    }
-  } else {
-    mg <- getModulesGenes(nets_dir)
-  }
+  mg <- getModulesCompositionPerIter(nets_dir)
 
   # Step 0
   df <- as.data.frame(table(mg$path))
@@ -340,7 +316,6 @@ getSankeyPlot <- function(module_name="pink",
 #' @param nets_dir if modulesGenes is not provided, the path where all the networks of the same cell type and different iterations are located.
 #' @return an enrichment plot
 #' @export
-#' @examples
 
 getEnrichmentPlot <- function(module_name="pink",
                               source="GO:BP",
@@ -462,5 +437,260 @@ getEnrichmentPlot <- function(module_name="pink",
   draw(h, heatmap_legend_side="bottom", annotation_legend_side="right")
 
   return(list(heatmap=h, enrichment=enrichh))
+
+}
+
+
+#' getRobustAndEvolvedModules - For each module of the T0 network, it returns the percentage of the genes maintained together at Tn.
+#' @param nets.dir the path where the networks of the same cell type and different iterations are located.
+#' @param path the directory where the statistics will be saved.
+#' @param name the name of the cell type.
+#' @return it returns a table with one row for each T0 module and some columns that show how the module composition has changed from T0 to Tn.
+#' @export
+
+getRobustAndEvolvedModules <- function(nets.dir, path=getwd(), name="CT1") {
+
+  file <- list.files(paste0(path, name, "_stats.rds"))
+
+  if(length(file)==0) {
+    dirs <- list.dirs(nets.dir, recursive=F)
+    stats <- data.frame()
+    overlap <- getModulesCompositionPerIter(nets.dir=nets.dir)
+
+
+    for(module in unique(overlap$Iter0)) {
+      # Get T0 module genes distribution
+      o <- overlap[overlap$Iter0==module, ]
+      ms <- nrow(o)
+      iters <- colnames(o)[3:(ncol(o)-1)]
+
+      for(iter in iters) {
+        # Get stats
+        min <- round((5*ms)/100,0)
+        tab <- table(o[, iter])
+        tab_filt <- tab[tab>=min]
+
+        # Get entropy
+        genes <- as.vector(tab/ms)
+        e <- round(- sum(genes * log2(genes))/length(genes),4)
+
+        # Save results
+        row <- data.frame(name=name, T0_module=module, module_size=ms, iter=gsub("Iter", "", iter), nModulesFilt=length(tab_filt),
+                          remained_genes=max(tab_filt), remained_genes_per=round((max(tab_filt)*100)/ms, 1), nModules=length(tab), entropy=e)
+
+        stats <- rbind(stats, row)
+      }
+    }
+
+    saveRDS(stats, paste0(path, name, "_stats.rds"))
+
+    stats$lost_genes_per <- 100-stats$remained_genes_per
+    stats$type <- rep("partiallyEvolved", nrow(stats))
+    stats$type [stats$remained_genes_per>=70] <- "maintained"
+    stats$type [stats$remained_genes_per<20] <- "evolved"
+    stats$type <- factor(stats$type , levels=c("maintained", "partiallyEvolved", "evolved"))
+
+  } else {
+    stats <- readRDS(file)
+  }
+
+  return(stats)
+
+}
+
+
+#' summariseModulesAnnotations - For each module of the T0 network, it returns the main annotations, including the size, the percentage of genes maintained together at Tn, the association with clinical covariates and the association with different list of markers.
+#' @param nets.dir the path where the networks of the same cell type and different iterations are located.
+#' @param path the directory where the statistics will be saved.
+#' @param name the name of the cell type.
+#' @return it returns a table with one row for each T0 module and some columns that shows tha main annotations of each module.
+#' @export
+
+
+summariseModulesAnnotations <- function(nets.dir=nets.dir, path=getwd(), name="CT1") {
+
+  # Load libraries
+  require(stringr)
+
+  nets.dir2 <- list.dirs(nets.dir, recursive=F)
+  net.dir <- nets.dir2[grep("iter0", nets.dir2)]
+  net.files <- list.files(paste0(net.dir, "/Net/"), full.names=T)
+
+  # Separate the network from the rest of the files
+  net <- readRDS(net.files[grep(".50.rds$", net.files)])
+  files <- net.files[-grep(".50.rds$", net.files)]
+  files <- files[-grep("functionalEnrich", files)]
+  files <- files[-grep("phenotypeEnrich", files)]
+  files <- files[-grep("moduleMembership", files)]
+
+  # Get name of the iteration
+  iter <- str_split(files[1], "iter")[[1]]
+  iter <- paste0("iter", gsub("\\..*", "", iter[length(iter)]))
+
+  # Add the basic modules' information to the final table
+  tab <- sort(table(net$moduleColors), decreasing=T)
+  results <- data.frame(iter=rep(iter, length(tab)), modules=names(tab), size=as.vector(tab))
+
+  # Add the percentage of genes maintained together at Tn
+  stats <- getRobustAndEvolvedModules(nets.dir=nets.dir, path=path, name=name)
+  stats2 <- stats[match(results$modules, gsub("Iter0: ", "", stats$T0_module)), ]
+  stopifnot(identical(gsub("Iter0: ", "", stats2$T0_module), results$modules))
+
+  results <- cbind(results, genesTogetherAtTn_per=stats2$remained_genes_per)
+
+  # Add the covariates p-val to the final table
+  traitCorr <- read.csv(files[grep("traitCorr", files)])[, -1]
+  traitCorr <- traitCorr[match(results$modules, traitCorr$module), ]
+  stopifnot(identical(traitCorr$module, results$modules))
+  results <- cbind(results, traitCorr[grep("pval", colnames(traitCorr))])
+  files <- files[-grep("traitCorr", files)]
+
+  # For each fgsea file
+  for (file in files) {
+
+    # Get name of the markers list/source of annotation
+    name <- str_split(file, "_")[[1]]
+    name <- gsub(".csv", "", name[length(name)])
+
+    # Read file
+    file <- read.csv(file)[, -1]
+
+    # Add this information to the final table
+    all_values <- rep(NA, nrow(results))
+    names(all_values) <- results$modules
+
+    for(m in unique(file$module)) {
+      df <- file[file$module==m, ]
+      newvalue <- paste0(paste0(df$pathway," P<(", format(df$padj2, digits=3), ")"), collapse=", ")
+      all_values[match(m, names(all_values))] <- newvalue
+    }
+    results <- cbind(results, all_values)
+    colnames(results)[ncol(results)] <- paste0("markers_", name)
+  }
+
+  return(results)
+}
+
+
+
+
+#' getInteractiveBrowser - It creates an interactive browser with T0 modules annotations and highlights the most relevant modules based on user's criteria.
+#' @param nets.dir the path where the networks of the same cell type and different iterations are located.
+#' @param path the directory where the statistics will be saved.
+#' @param name the name of the cell type.
+#' @param criteria the criteria to highlight the most relevant modules.
+#' @return it returns an interative table with one row for each T0 module and some columns that shows the main annotations of each module.
+#' @export
+
+getInteractiveBrowser <- function(nets.dir, path, name, criteria=NULL) {
+
+  # Load libraries
+  library(reactable)
+  library(htmltools)
+  library(fontawesome)
+  library(shiny)
+  library(dplyr)
+  library(reactablefmtr)
+
+
+  # Get modules annotations
+  results <- summariseModulesAnnotations(nets.dir=nets.dir, path=path, name=name)
+
+  if(is.null(criteria)) {
+    results$criteria_maintained[results$genesTogetherAtTn_per>=70] <- "YES"
+    results$criteria_maintained[results$genesTogetherAtTn_per<70] <- "NO"
+
+    results$criteria_evolved[results$genesTogetherAtTn_per>=70] <- "NO"
+    results$criteria_evolved[results$genesTogetherAtTn_per<70] <- "YES"
+  }
+
+  r <- reactable(
+    results,
+    # defaultSorted = `Mantained genes at Tn (%)`,
+    defaultColDef = colDef(
+      header = function(value) gsub(".", " ", value, fixed = TRUE),
+      cell = function(value) format(value, nsmall = 1),
+      align = "left",
+      minWidth = 100
+    ),
+    columnGroups = list(
+      colGroup(name = "genesTogether", columns = colnames(results)[3:4]),
+      colGroup(name = "covariates", columns = colnames(results)[grep("pval", colnames(results))]),
+      colGroup(name = "Markers", columns = colnames(results)[grep("markers", colnames(results))]),
+      colGroup(name = "Criteria", columns = colnames(results)[grep("criteria", colnames(results))])
+    ),
+    style = list(fontSize = '12px'),
+    fullWidth = FALSE,
+    height = 800,
+    resizable = TRUE,
+    wrap = T,
+    highlight = TRUE,
+    filterable = TRUE,
+    compact = TRUE,
+    pagination = FALSE,
+    onClick = "expand",
+    columns = list(
+      `Iteration`= colDef(minWidth=80),
+      `Module`=colDef(minWidth=80),
+      `Module size`=colDef(filterable = FALSE, minWidth = 100, align = "left", cell = function(value) {
+        width <- paste0(value / max(results$`Module size`) * 100, "%")
+        bar_chart(value, width = width)
+      }),
+      `Mantained genes at Tn (%)`= colDef(filterable=FALSE, minWidth = 120, align = "left", cell = function(value) {
+        width <- paste0(value / max(results$`Mantained genes at Tn (%)`) * 100, "%")
+        bar_chart(value, width = width, fill = "#fc5185", background = "#e1e1e1")
+      }),
+      `Criteria Maintained`= colDef(filterable=FALSE, minWidth = 90, cell = function(value) {
+        if (value=="NO") "\u274c NO" else "\u2714\ufe0f YES"}),
+      `Criteria Evolved`= colDef(filterable=FALSE, minWidth = 80, cell = function(value) {
+        if (value=="NO") "\u274c NO" else "\u2714\ufe0f YES"})),
+
+    elementId = "download-table",
+    showSortIcon = FALSE,
+    borderless = TRUE,
+    class = "standings-table",
+    # theme = spotify_theme(),
+    rowStyle = JS("function(rowInfo) {
+      if (rowInfo.values['Criteria Maintained'] =='YES') {
+        return { background: 'lightblue' }
+      }
+    }"),
+    # rowClass = JS("function(rowInfo) {
+    #   if (rowInfo.values['Criteria Maintained'] =='YES') {
+    #     return 'bold'
+    #   }
+    # }"),
+    rowClass = JS("
+      function(rowInfo, state) {
+        const firstSorted = state.sorted[0]
+        if (firstSorted && firstSorted.id === 'Iteration') {
+          const nextRow = state.pageRows[rowInfo.viewIndex + 1]
+          if (nextRow && rowInfo.values['group'] !== nextRow.group) {
+            return 'group-last'
+          }
+        }
+      }"
+    ),
+    # selection = "multiple"
+  )
+
+
+  tbl <- htmltools::browsable(
+    tagList(
+      tags$button(
+        tagList(fontawesome::fa("download"), "Download as CSV"),
+        onclick = "Reactable.downloadDataCSV('DNs-download-table', 'DNs_interesting_modules.csv')"
+      ), r
+    ))
+
+
+  div(class = "standings",
+      div(class = "title",
+          h2("Modules chracterization through pseudo-cells iterations"),
+          "scCoExpNets"
+      ),
+      tbl,
+      # "Forecast from before 3rd group matches"
+  )
 
 }
