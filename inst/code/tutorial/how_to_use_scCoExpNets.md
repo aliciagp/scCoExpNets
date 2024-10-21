@@ -113,7 +113,7 @@ getSankeyPlot(module_name="pink",
 
 
 
-# scCoExpNets provides an interactive software to detect interesting modules
+# scCoExpNets provides an interactive browser to detect interesting modules
 
 Finally, scCoExpNets summarise the annotations of the T0 modules in an interactive table. Additionally, it highlights the most relevant modules based on users' criteria. 
 

@@ -34,7 +34,7 @@ devtools::install_github('aliciagp/scCoExpNets')
 
 ## Tutorials
 In this repository, you can find a 
-[tutorial](https://htmlpreview.github.io/?https://github.com/aliciagp/scCoExpNets/tree/master/inst/code/tutorials/how_to_use_scCoExpNets.md) on how to create and annotate co-expression networks for each cell type, as well as how to use different types of visualization and use the interactive browser to detect potentially interesting modules.
+[tutorial](https://github.com/aliciagp/scCoExpNets/blob/master/inst/code/tutorial/how_to_use_scCoExpNets.md) on how to create and annotate co-expression networks for each cell type, as well as how to use different types of visualization and use the interactive browser to detect potentially interesting modules.
 
 
 ## Credits
