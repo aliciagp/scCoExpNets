@@ -10,15 +10,15 @@ devtools::install_github("aliciagp/scCoExpNets")
 
 By calling a single function, scCoExpNets performs the following tasks for each cell type:
 
-    - **Create a set of single-cell gene co-expression networks (scGCNs)**: scCoExpNets creates a scGCN from the original expression matrix. Then, it reduces the sparsity of the gene expression by creating pseudo-cells while the number of pseudo-cells remains above a certain threshold. For each pseudo-cell matrix, the corresponding scGCN is created.
+    - Create a set of single-cell gene co-expression networks (scGCNs): scCoExpNets creates a scGCN from the original expression matrix. Then, it reduces the sparsity of the gene expression by creating pseudo-cells while the number of pseudo-cells remains above a certain threshold. For each pseudo-cell matrix, the corresponding scGCN is created.
     
-    - **Estimate the importance of each gene in each module:** for each network, scCoExpnets calculates the module membership of each gene in each module.
+    - Estimate the importance of each gene in each module: for each network, scCoExpnets calculates the module membership of each gene in each module.
     
-    - **Get the functional terms of each module:** scCoExpNets returns the functional enrichment of each module of each network using GO, KEGG and REAC datasets. 
+    - Get the functional terms of each module: scCoExpNets returns the functional enrichment of each module of each network using GO, KEGG and REAC datasets. 
     
-    - **Get the phenotype terms of each module:** if phenotypeEnrich==T, scCoExpNets also returns the phenotype enrichment of each module of each network using all databases available at PhenoExam R package. 
+    - Get the phenotype terms of each module: if phenotypeEnrich==T, scCoExpNets also returns the phenotype enrichment of each module of each network using all databases available at PhenoExam R package. 
     
-    - **Get the association between modules and donors' traits:** if moduleTraitCorr==T, scCoExpNets estimates the correlation between the eigengenes of the module and the traits selected (included in covsToCorr) 
+    - Get the association between modules and donors' traits: if moduleTraitCorr==T, scCoExpNets estimates the correlation between the eigengenes of the module and the traits selected (included in covsToCorr) 
 
 
 ``` r
