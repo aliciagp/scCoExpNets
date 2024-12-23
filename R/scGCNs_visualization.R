@@ -29,12 +29,12 @@ getModulesCompositionPerIter <- function(nets.dir) {
     modules <- unique(net$moduleColors)
 
     for (module in modules) {
-      modulesList[[paste0("Iter",iter, "-", module)]]<- names(net$moduleColors)[net$moduleColors==module]
+      modulesList[[paste0("Iter",iter, "-", module, "_")]]<- names(net$moduleColors)[net$moduleColors==module]
     }
   }
 
   modulesList <- unlist(modulesList)
-  names(modulesList) <- unlist(lapply(str_split(names(modulesList), "-"), function(x) paste0(x[1], "-", gsub("[0-9]", "", x[2]))))
+  names(modulesList) <- gsub("_.*", "", names(modulesList))
 
   # Get gene names
   genes <- names(readRDS(nets[1])$moduleColors)
@@ -45,7 +45,6 @@ getModulesCompositionPerIter <- function(nets.dir) {
     row <- c(g, names(path))
     results <- rbind(results, row)
   }
-
 
   # Step 4: create a data frame with two columns
   results[, -1] <- as.data.frame(apply(results[, -1], 2, function(x) gsub("-", ": ", x)))
